@@ -1,16 +1,35 @@
 use ratatui::{
-    widgets::{Block, Borders, List, ListItem},
+    layout::Constraint,
     style::{Color, Style},
+    widgets::{Block, Borders, Row, Table},
 };
+use crate::utils::NodeItem;
 
-pub fn render(items: &[String]) -> List<'_> {
-    let list_items: Vec<ListItem> = items
+pub fn render<'a>(nodes: &[NodeItem]) -> Table<'a> {
+    let rows: Vec<Row> = nodes
         .iter()
-        .map(|i| ListItem::new(i.as_str()))
+        .map(|node| {
+            Row::new(vec![
+                node.protocol.clone(),
+                node.name.clone(),
+                node.address.clone(),
+                node.port.to_string(),
+            ])
+        })
         .collect();
 
-    List::new(list_items)
-        .block(Block::default().title("列表").borders(Borders::ALL))
-        .highlight_style(Style::default().bg(Color::LightBlue))
-        .highlight_symbol(">> ")
+    let header = Row::new(vec!["协议", "名称", "地址", "端口"])
+        .style(Style::default().fg(Color::Yellow))
+        .bottom_margin(1);
+
+    Table::new(rows, [
+        Constraint::Length(10),
+        Constraint::Length(25),
+        Constraint::Length(30),
+        Constraint::Length(8),
+    ])
+    .header(header)
+    .block(Block::default().title("节点列表").borders(Borders::ALL))
+    .row_highlight_style(Style::default().bg(Color::LightBlue))
+    .highlight_symbol(">> ")
 }
