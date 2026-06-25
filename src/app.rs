@@ -1,7 +1,7 @@
+use crate::utils::Agency;
 use crossterm::event::KeyCode;
 use std::fs;
 use std::path::Path;
-use crate::utils::Agency;
 
 #[derive(Debug)]
 pub struct App {
@@ -18,8 +18,7 @@ impl App {
             selected: 0,
             should_quit: false,
             agencies: vec![],
-        },
-        
+        }
     }
 
     pub fn readconfig(&mut self) {
@@ -35,8 +34,10 @@ impl App {
                     if let Ok(content) = fs::read_to_string(&path) {
                         if let Ok(agency) = serde_json::from_str::<Agency>(&content) {
                             for node in &agency.node {
-                                self.items.push(format!("[{}] {}:{} - {}", 
-                                    node.protocol, node.address, node.port, node.name));
+                                self.items.push(format!(
+                                    "[{}] {}:{} - {}",
+                                    node.protocol, node.address, node.port, node.name
+                                ));
                             }
                             self.agencies.push(agency);
                         }
@@ -50,27 +51,25 @@ impl App {
         match key {
             KeyCode::Char('q') => self.should_quit = true,
             KeyCode::Up => {
-                if(self.items.len()==0)
-                {
-                    self.selected=0;
-                }
-                else if(self.selected>0){
+                if self.items.len() == 0 {
+                    self.selected = 0;
+                } else if self.selected > 0 {
                     self.selected -= 1;
-                }else{
-                    self.selected=self.items.len()-1;
+                } else {
+                    self.selected = self.items.len() - 1;
                 }
             }
             KeyCode::Down => {
-                if ( self.items.len()==0 )
-                {
-                    self.selected=0;
-                }else{
-                self.selected =(self.selected+1)%self.items.len();
+                if self.items.len() == 0 {
+                    self.selected = 0;
+                } else {
+                    self.selected = (self.selected + 1) % self.items.len();
                 }
             }
-            KeyCode::Enter=>{
-                 if ( self.items.len()==0 ) return;
-
+            KeyCode::Enter => {
+                if self.items.len() == 0 {
+                    return;
+                }
             }
             _ => {}
         }

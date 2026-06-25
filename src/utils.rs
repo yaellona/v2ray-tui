@@ -1,15 +1,15 @@
-use reqwest::{Url, header::USER_AGENT};
 use base64::Engine;
+use reqwest::{Url, header::USER_AGENT};
+use serde::{Deserialize, Serialize};
 use serde_json::to_string_pretty;
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
-use serde::{Serialize, Deserialize};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Agency {
     pub url: String,
-    pub node: Vec<NodeItem>
+    pub node: Vec<NodeItem>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -24,7 +24,10 @@ pub struct NodeItem {
 
 impl Agency {
     pub fn new(url: String, node_item: Vec<NodeItem>) -> Self {
-        Self { url, node: node_item }
+        Self {
+            url,
+            node: node_item,
+        }
     }
 
     pub fn save_to_config(&self) -> Result<String, Box<dyn std::error::Error>> {
@@ -33,8 +36,14 @@ impl Agency {
             fs::create_dir_all(config_dir)?;
         }
 
-        let filename = format!("config/{}.json", 
-            self.url.replace("https://", "").replace("http://", "").replace("/", "_").replace(":", "_"));
+        let filename = format!(
+            "config/{}.json",
+            self.url
+                .replace("https://", "")
+                .replace("http://", "")
+                .replace("/", "_")
+                .replace(":", "_")
+        );
         let json = to_string_pretty(self)?;
         fs::write(&filename, json)?;
         Ok(filename)
@@ -43,7 +52,10 @@ impl Agency {
 
 pub fn parse_proxy_uri(uri: &str) -> Result<NodeItem, Box<dyn std::error::Error>> {
     let (uri_part, name) = match uri.rfind('#') {
-        Some(pos) => (&uri[..pos], urlencoding::decode(&uri[pos+1..])?.into_owned()),
+        Some(pos) => (
+            &uri[..pos],
+            urlencoding::decode(&uri[pos + 1..])?.into_owned(),
+        ),
         None => (uri, String::new()),
     };
 
@@ -54,9 +66,13 @@ pub fn parse_proxy_uri(uri: &str) -> Result<NodeItem, Box<dyn std::error::Error>
 
     let url = Url::parse(&normalized)?;
 
-    let protocol = if uri.starts_with("vless://") { "vless" }
-        else if uri.starts_with("trojan://") { "trojan" }
-        else { "hysteria2" };
+    let protocol = if uri.starts_with("vless://") {
+        "vless"
+    } else if uri.starts_with("trojan://") {
+        "trojan"
+    } else {
+        "hysteria2"
+    };
 
     let params: HashMap<String, String> = url.query_pairs().into_owned().collect();
 
@@ -72,7 +88,10 @@ pub fn parse_proxy_uri(uri: &str) -> Result<NodeItem, Box<dyn std::error::Error>
 
 pub fn fetch_subscription(sub_url: &str) -> Result<Agency, Box<dyn std::error::Error>> {
     let client = reqwest::blocking::Client::new();
-    let response = client.get(sub_url).header(USER_AGENT, "v2rayN/6.40").send()?;
+    let response = client
+        .get(sub_url)
+        .header(USER_AGENT, "v2rayN/6.40")
+        .send()?;
 
     if response.status() != reqwest::StatusCode::OK {
         return Err(format!("HTTP {}", response.status()).into());

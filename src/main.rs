@@ -1,15 +1,15 @@
 mod app;
-mod ui;
-mod event;
 mod components;
-mod utils;
+mod event;
 mod test;
-use std::io;
-use ratatui::{backend::CrosstermBackend, Terminal};
+mod ui;
+mod utils;
 use crossterm::{
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
     execute,
+    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
+use ratatui::{Terminal, backend::CrosstermBackend};
+use std::io;
 
 fn main() -> Result<(), io::Error> {
     enable_raw_mode()?;
@@ -19,7 +19,7 @@ fn main() -> Result<(), io::Error> {
     let mut terminal = Terminal::new(backend)?;
 
     let mut app = app::App::new();
-    
+    app.readconfig();
 
     loop {
         terminal.draw(|f| ui::draw(f, &app))?;
