@@ -5,8 +5,8 @@ use crate::proxy::ProxyNode;
 use crate::singbox;
 use crate::system::system_proxy;
 use crossterm::event::KeyCode;
+use dirs::config_dir;
 use std::fs;
-use std::path::Path;
 use std::process::Child;
 
 pub use event::poll_event;
@@ -55,7 +55,7 @@ impl App {
     }
 
     pub fn readconfig(&mut self) {
-        let config_dir = Path::new("./config");
+        let config_dir = config_dir().unwrap().join("ladderust");
         if !config_dir.exists() {
             return;
         }

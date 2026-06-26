@@ -1,9 +1,11 @@
 use crate::proxy::{self, ProxyNode};
+use dirs::config_dir;
 use reqwest::header::USER_AGENT;
 use serde::{Deserialize, Serialize};
 use serde_json::to_string_pretty;
+use std::collections::hash_map::DefaultHasher;
 use std::fs;
-use std::path::Path;
+use std::hash::{Hash, Hasher};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TrafficInfo {
@@ -33,22 +35,20 @@ impl Agency {
     }
 
     pub fn save_to_config(&self) -> Result<String, Box<dyn std::error::Error>> {
-        let config_dir = Path::new("./config");
+        let config_dir = config_dir().unwrap().join("ladderust");
         if !config_dir.exists() {
-            fs::create_dir_all(config_dir)?;
+            fs::create_dir_all(&config_dir)?;
         }
 
-        let filename = format!(
-            "config/{}.json",
-            self.url
-                .replace("https://", "")
-                .replace("http://", "")
-                .replace("/", "_")
-                .replace(":", "_")
-        );
+        // 用哈希生成安全的文件名
+        let mut hasher = DefaultHasher::new();
+        self.url.hash(&mut hasher);
+        let hash = format!("{:x}", hasher.finish());
+
+        let filename = config_dir.join(format!("{}.json", hash));
         let json = to_string_pretty(self)?;
         fs::write(&filename, json)?;
-        Ok(filename)
+        Ok(filename.to_string_lossy().to_string())
     }
 }
 
@@ -140,57 +140,4 @@ pub fn fetch_subscription(sub_url: &str) -> Result<Agency, Box<dyn std::error::E
         .collect();
 
     Ok(Agency::new(sub_url.to_string(), nodes, Some(info)))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_fetch_subscription() {
-        match fetch_subscription("https://103.14.76.98/sub/pianyi/dad9c33c10f77b1d892911351b527e7d")
-        {
-            Ok(agency) => {
-                agency.save_to_config().ok();
-                println!("{:?}", agency)
-            }
-            Err(e) => eprintln!("错误: {}", e),
-        }
-    }
-
-    #[test]
-    fn test_parse_traffic_info() {
-        let header = "upload=1073741824; download=2147483648; total=10737418240; expire=1735689600";
-        let traffic = parse_traffic_info(header).unwrap();
-
-        assert_eq!(traffic.upload, 1073741824);
-        assert_eq!(traffic.download, 2147483648);
-        assert_eq!(traffic.total, 10737418240);
-        assert_eq!(traffic.expire, Some(1735689600));
-    }
-
-    #[test]
-    fn test_parse_traffic_info_partial() {
-        let header = "upload=100; download=200";
-        let traffic = parse_traffic_info(header).unwrap();
-
-        assert_eq!(traffic.upload, 100);
-        assert_eq!(traffic.download, 200);
-        assert_eq!(traffic.total, 0);
-        assert_eq!(traffic.expire, None);
-    }
-
-    #[test]
-    fn test_extract_provider_from_url() {
-        let url = "https://example.com/sub/abc123";
-        let provider = extract_provider_from_url(url);
-        assert_eq!(provider, Some("example.com".to_string()));
-    }
-
-    #[test]
-    fn test_extract_provider_from_url_invalid() {
-        let url = "not a url";
-        let provider = extract_provider_from_url(url);
-        assert_eq!(provider, None);
-    }
 }

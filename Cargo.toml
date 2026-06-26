@@ -1,5 +1,5 @@
 [package]
-name = "v2ray-tui"
+name = "ladderust"
 version = "0.1.0"
 edition = "2024"
 
@@ -13,3 +13,4 @@ serde_json = "1.0.150"
 url = "2"
 urlencoding = "2.1"
 serde = { version = "1", features = ["derive"] }
+dirs = "6.0.0"

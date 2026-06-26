@@ -35,7 +35,7 @@ pub fn render_url_input(f: &mut Frame, app: &App) {
     let block = Block::default()
         .title("添加订阅 (Enter 确认, Esc 取消)")
         .borders(Borders::ALL)
-        .style(Style::default().bg(Color::DarkGray).fg(Color::White));
+        .style(Style::default().fg(Color::White));
 
     let inner = block.inner(area);
     f.render_widget(block, area);
@@ -90,7 +90,7 @@ pub fn render_agency_select(f: &mut Frame, app: &App) {
     let block = Block::default()
         .title("选择代理商 (Enter 确认, Esc 取消)")
         .borders(Borders::ALL)
-        .style(Style::default().bg(Color::DarkGray).fg(Color::White));
+        .style(Style::default().fg(Color::White));
 
     let inner = block.inner(area);
     f.render_widget(block, area);
@@ -107,7 +107,11 @@ pub fn render_agency_select(f: &mut Frame, app: &App) {
                 .and_then(|info| info.provider.as_deref())
                 .unwrap_or("未知供应商");
             let node_count = agency.node.len();
-            let marker = if i == app.agency_selected { ">> " } else { "   " };
+            let marker = if i == app.agency_selected {
+                ">> "
+            } else {
+                "   "
+            };
             format!("{}{} ({} 个节点)", marker, provider, node_count)
         })
         .collect();

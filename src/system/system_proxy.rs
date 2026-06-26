@@ -37,7 +37,6 @@ pub fn set_system_proxy(enable: bool) -> Result<(), String> {
             return Err("设置 ProxyServer 失败".to_string());
         }
     }
-
     Ok(())
 }
 
@@ -45,10 +44,7 @@ pub fn get_system_proxy_status() -> bool {
     let output = Command::new("powershell")
         .args([
             "-Command",
-            &format!(
-                "(Get-ItemProperty -Path '{}').ProxyEnable",
-                REG_PATH
-            ),
+            &format!("(Get-ItemProperty -Path '{}').ProxyEnable", REG_PATH),
         ])
         .output();
 
