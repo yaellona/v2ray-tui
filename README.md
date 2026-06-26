@@ -37,3 +37,13 @@ cargo build --release
 ```
 
 编译完成后，可以在`./target/release`中找到编译的可执行文件。
+
+## TODO
+
+1. 添加linux的系统代理功能
+
+2. 添加tun功能
+
+3. tui自定义修改策略
+
+4. 添加后台运行模式

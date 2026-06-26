@@ -1,6 +1,6 @@
 use serde::Deserialize;
 
-use super::common::{decode_base64, TlsConfig, TransportConfig};
+use super::common::{TlsConfig, TransportConfig, decode_base64};
 
 #[derive(Debug, Clone, Deserialize)]
 struct VmessJson {
@@ -43,8 +43,14 @@ pub fn parse_vmess(uri: &str) -> Result<VmessNode, Box<dyn std::error::Error>> {
 
     let port: u16 = v.port.parse().unwrap_or(443);
     let alter_id: u32 = v.aid.as_deref().unwrap_or("0").parse().unwrap_or(0);
-    let security = v.scy.filter(|s| !s.is_empty()).unwrap_or_else(|| "auto".to_string());
-    let net = v.net.filter(|s| !s.is_empty()).unwrap_or_else(|| "tcp".to_string());
+    let security = v
+        .scy
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "auto".to_string());
+    let net = v
+        .net
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "tcp".to_string());
 
     let transport = if net == "tcp" {
         None
