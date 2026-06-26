@@ -1,9 +1,9 @@
 mod app;
-mod components;
-mod event;
-mod test;
+mod config;
+mod proxy;
+mod singbox;
 mod ui;
-mod utils;
+
 use crossterm::{
     execute,
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
@@ -24,13 +24,16 @@ fn main() -> Result<(), io::Error> {
     loop {
         terminal.draw(|f| ui::draw(f, &app))?;
 
-        if let Some(key) = event::poll_event()? {
+        if let Some(key) = app::poll_event()? {
             app.on_key(key);
         }
         if app.should_quit {
             break;
         }
     }
+
+    // 清理子进程
+    app.cleanup();
 
     disable_raw_mode()?;
     execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
