@@ -1,6 +1,6 @@
 mod event;
 
-use crate::config::Agency;
+use crate::config::{self, Agency};
 use crate::proxy::ProxyNode;
 use crate::singbox;
 use crossterm::event::KeyCode;
@@ -9,6 +9,13 @@ use std::path::Path;
 use std::process::Child;
 
 pub use event::poll_event;
+
+#[derive(Debug, PartialEq)]
+pub enum PopupMode {
+    None,
+    UrlInput,
+    AgencySelect,
+}
 
 #[derive(Debug)]
 pub struct App {
@@ -19,6 +26,11 @@ pub struct App {
     pub proxy_running: bool,
     pub active_node: Option<usize>,
     child_process: Option<Child>,
+    pub popup: PopupMode,
+    pub url_input: String,
+    pub agency_selected: usize,
+    pub status_message: Option<String>,
+    pub loading: bool,
 }
 
 impl App {
@@ -31,6 +43,11 @@ impl App {
             proxy_running: false,
             active_node: None,
             child_process: None,
+            popup: PopupMode::None,
+            url_input: String::new(),
+            agency_selected: 0,
+            status_message: None,
+            loading: false,
         }
     }
 
@@ -55,6 +72,74 @@ impl App {
                 }
             }
         }
+    }
+
+    pub fn refresh_nodes(&mut self) {
+        self.nodes.clear();
+        for agency in &self.agencies {
+            for node in &agency.node {
+                self.nodes.push(node.clone());
+            }
+        }
+        self.selected = 0;
+    }
+
+    pub fn switch_agency(&mut self, idx: usize) {
+        if idx >= self.agencies.len() {
+            return;
+        }
+
+        // 如果代理正在运行，先停止
+        if self.proxy_running {
+            self.stop_proxy();
+        }
+
+        self.nodes.clear();
+        let agency = &self.agencies[idx];
+        for node in &agency.node {
+            self.nodes.push(node.clone());
+        }
+        self.selected = 0;
+        self.agency_selected = idx;
+
+        let provider = agency
+            .info
+            .as_ref()
+            .and_then(|i| i.provider.as_deref())
+            .unwrap_or("未知");
+        self.status_message = Some(format!("已切换到: {}", provider));
+    }
+
+    pub fn fetch_and_add_agency(&mut self, url: &str) {
+        self.loading = true;
+        self.status_message = Some("正在拉取订阅...".to_string());
+
+        match config::fetch_subscription(url) {
+            Ok(agency) => {
+                let provider = agency
+                    .info
+                    .as_ref()
+                    .and_then(|i| i.provider.as_deref())
+                    .unwrap_or("未知")
+                    .to_string();
+                let node_count = agency.node.len();
+
+                // 保存到配置文件
+                if let Err(e) = agency.save_to_config() {
+                    self.status_message = Some(format!("保存失败: {}", e));
+                    self.loading = false;
+                    return;
+                }
+
+                self.agencies.push(agency);
+                self.refresh_nodes();
+                self.status_message = Some(format!("已添加: {} ({} 个节点)", provider, node_count));
+            }
+            Err(e) => {
+                self.status_message = Some(format!("拉取失败: {}", e));
+            }
+        }
+        self.loading = false;
     }
 
     pub fn toggle_proxy(&mut self) {
@@ -86,7 +171,7 @@ impl App {
                 self.active_node = Some(self.selected);
             }
             Err(e) => {
-                eprintln!("启动代理失败: {}", e);
+                self.status_message = Some(format!("启动代理失败: {}", e));
             }
         }
     }
@@ -110,28 +195,111 @@ impl App {
             .map(|node| node.name())
     }
 
-    pub fn on_key(&mut self, key: KeyCode) {
-        if key == KeyCode::Char('q') {
-            self.should_quit = true;
-            return;
-        } else if self.nodes.is_empty() {
-            return;
-        }
+    fn handle_url_input(&mut self, key: KeyCode) {
         match key {
+            KeyCode::Esc => {
+                self.popup = PopupMode::None;
+                self.url_input.clear();
+            }
+            KeyCode::Enter => {
+                if !self.url_input.is_empty() {
+                    let url = self.url_input.clone();
+                    self.popup = PopupMode::None;
+                    self.url_input.clear();
+                    self.fetch_and_add_agency(&url);
+                }
+            }
+            KeyCode::Backspace => {
+                self.url_input.pop();
+            }
+            KeyCode::Char(c) => {
+                self.url_input.push(c);
+            }
+            _ => {}
+        }
+    }
+
+    fn handle_agency_select(&mut self, key: KeyCode) {
+        match key {
+            KeyCode::Esc => {
+                self.popup = PopupMode::None;
+            }
             KeyCode::Up => {
-                if self.selected > 0 {
-                    self.selected -= 1;
+                if self.agency_selected > 0 {
+                    self.agency_selected -= 1;
                 } else {
-                    self.selected = self.nodes.len() - 1;
+                    self.agency_selected = self.agencies.len() - 1;
                 }
             }
             KeyCode::Down => {
-                self.selected = (self.selected + 1) % self.nodes.len();
+                self.agency_selected = (self.agency_selected + 1) % self.agencies.len();
             }
             KeyCode::Enter => {
-                self.toggle_proxy();
+                let idx = self.agency_selected;
+                self.popup = PopupMode::None;
+                self.switch_agency(idx);
             }
             _ => {}
+        }
+    }
+
+    pub fn on_key(&mut self, key: KeyCode) {
+        // 弹窗模式下处理弹窗按键
+        match self.popup {
+            PopupMode::UrlInput => {
+                self.handle_url_input(key);
+                return;
+            }
+            PopupMode::AgencySelect => {
+                self.handle_agency_select(key);
+                return;
+            }
+            PopupMode::None => {}
+        }
+
+        // 正常模式
+        if key == KeyCode::Char('q') {
+            self.should_quit = true;
+            return;
+        }
+
+        match key {
+            KeyCode::Char('u') => {
+                self.popup = PopupMode::UrlInput;
+                self.url_input.clear();
+            }
+            KeyCode::Char('c') => {
+                if !self.agencies.is_empty() {
+                    self.popup = PopupMode::AgencySelect;
+                    self.agency_selected = 0;
+                }
+            }
+            KeyCode::Char('s') => {
+                // 切换显示所有节点或当前代理商节点
+                self.refresh_nodes();
+                self.status_message = Some("已刷新节点列表".to_string());
+            }
+            _ => {
+                if self.nodes.is_empty() {
+                    return;
+                }
+                match key {
+                    KeyCode::Up => {
+                        if self.selected > 0 {
+                            self.selected -= 1;
+                        } else {
+                            self.selected = self.nodes.len() - 1;
+                        }
+                    }
+                    KeyCode::Down => {
+                        self.selected = (self.selected + 1) % self.nodes.len();
+                    }
+                    KeyCode::Enter => {
+                        self.toggle_proxy();
+                    }
+                    _ => {}
+                }
+            }
         }
     }
 }

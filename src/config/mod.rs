@@ -127,13 +127,11 @@ pub fn fetch_subscription(sub_url: &str) -> Result<Agency, Box<dyn std::error::E
     let data = response.text()?;
     let trimmed = data.trim();
 
-    let decoded: String = match base64::Engine::decode(
-        &base64::engine::general_purpose::STANDARD,
-        trimmed,
-    ) {
-        Ok(bytes) => String::from_utf8(bytes).unwrap_or_default(),
-        Err(_) => trimmed.to_string(),
-    };
+    let decoded: String =
+        match base64::Engine::decode(&base64::engine::general_purpose::STANDARD, trimmed) {
+            Ok(bytes) => String::from_utf8(bytes).unwrap_or_default(),
+            Err(_) => trimmed.to_string(),
+        };
 
     let nodes: Vec<ProxyNode> = decoded
         .lines()
@@ -150,9 +148,8 @@ mod tests {
 
     #[test]
     fn test_fetch_subscription() {
-        match fetch_subscription(
-            "https://103.14.76.98/sub/pianyi/dad9c33c10f77b1d892911351b527e7d",
-        ) {
+        match fetch_subscription("https://103.14.76.98/sub/pianyi/dad9c33c10f77b1d892911351b527e7d")
+        {
             Ok(agency) => {
                 agency.save_to_config().ok();
                 println!("{:?}", agency)

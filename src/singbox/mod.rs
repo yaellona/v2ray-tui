@@ -195,7 +195,6 @@ pub fn start_proxy(node: &ProxyNode) -> Result<Child, String> {
         .stderr(Stdio::piped())
         .spawn()
         .map_err(|e| format!("启动 sing-box 失败: {}", e))?;
-
     Ok(child)
 }
 

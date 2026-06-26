@@ -20,38 +20,28 @@ pub fn render(app: &App) -> Paragraph<'_> {
         info_lines.push("\u{1f534} 代理已停止".to_string());
     }
 
-    // 显示供应商信息
-    if let Some(agency) = app.agencies.first() {
-        if let Some(ref info) = agency.info {
-            if let Some(ref provider) = info.provider {
-                info_lines.push(format!("供应商: {}", provider));
-            }
-
-            // 显示流量信息
-            if let Some(ref traffic) = info.traffic {
-                let used = traffic.upload + traffic.download;
-                let total = traffic.total;
-                let used_gb = used as f64 / 1024.0 / 1024.0 / 1024.0;
-                let total_gb = total as f64 / 1024.0 / 1024.0 / 1024.0;
-
-                info_lines.push(format!("流量: {:.2} GB / {:.2} GB", used_gb, total_gb));
-
-                // 显示过期时间
-                if let Some(expire) = traffic.expire {
-                    let expire_date = chrono::DateTime::from_timestamp(expire as i64, 0);
-                    if let Some(date) = expire_date {
-                        info_lines.push(format!(
-                            "过期: {}",
-                            date.format("%Y-%m-%d %H:%M:%S")
-                        ));
-                    }
-                }
-            }
-        }
+    // 显示当前代理商信息
+    if !app.agencies.is_empty() {
+        let current_agency = &app.agencies[app.agency_selected % app.agencies.len()];
+        let provider = current_agency
+            .info
+            .as_ref()
+            .and_then(|i| i.provider.as_deref())
+            .unwrap_or("未知");
+        let node_count = current_agency.node.len();
+        info_lines.push(format!(
+            "当前代理商: {} ({} 个节点)",
+            provider, node_count
+        ));
     }
 
-    if info_lines.len() == 1 {
-        info_lines.push("暂无订阅信息".to_string());
+    // 显示状态消息
+    if let Some(ref msg) = app.status_message {
+        info_lines.push(msg.clone());
+    }
+
+    if info_lines.len() == 1 && app.agencies.is_empty() {
+        info_lines.push("按 u 添加订阅".to_string());
     }
 
     let info_text = info_lines.join(" | ");

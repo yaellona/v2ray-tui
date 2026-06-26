@@ -5,7 +5,7 @@ use ratatui::{
     layout::{Constraint, Direction, Layout},
 };
 
-use crate::app::App;
+use crate::app::{App, PopupMode};
 
 pub fn draw(f: &mut Frame, app: &App) {
     let size = f.area();
@@ -25,9 +25,26 @@ pub fn draw(f: &mut Frame, app: &App) {
 
     // 中间表格
     let content = components::content::render(&app.nodes);
-    f.render_stateful_widget(content, chunks[1], &mut ratatui::widgets::TableState::default().with_selected(Some(app.selected)));
+    f.render_stateful_widget(
+        content,
+        chunks[1],
+        &mut ratatui::widgets::TableState::default().with_selected(Some(app.selected)),
+    );
 
     // 底部快捷键
-    let footer = components::footer::render("q: 退出 | ↑↓: 导航 | Enter: 启动/停止代理");
+    let footer = components::footer::render(
+        "q: 退出 | ↑↓: 导航 | Enter: 启动/停止 | u: 添加订阅 | c: 切换代理商",
+    );
     f.render_widget(footer, chunks[2]);
+
+    // 弹窗渲染
+    match app.popup {
+        PopupMode::UrlInput => {
+            components::popup::render_url_input(f, app);
+        }
+        PopupMode::AgencySelect => {
+            components::popup::render_agency_select(f, app);
+        }
+        PopupMode::None => {}
+    }
 }
