@@ -24,14 +24,14 @@ pub struct SubscriptionInfo {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Agency {
     pub url: String,
-    pub node: Vec<ProxyNode>,
+    pub nodes: Vec<ProxyNode>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub info: Option<SubscriptionInfo>,
 }
 
 impl Agency {
-    pub fn new(url: String, node: Vec<ProxyNode>, info: Option<SubscriptionInfo>) -> Self {
-        Self { url, node, info }
+    pub fn new(url: String, nodes: Vec<ProxyNode>, info: Option<SubscriptionInfo>) -> Self {
+        Self { url, nodes, info }
     }
 
     pub fn save_to_config(&self) -> Result<String, Box<dyn std::error::Error>> {
@@ -40,7 +40,6 @@ impl Agency {
             fs::create_dir_all(&config_dir)?;
         }
 
-        // 用哈希生成安全的文件名
         let mut hasher = DefaultHasher::new();
         self.url.hash(&mut hasher);
         let hash = format!("{:x}", hasher.finish());
@@ -57,33 +56,50 @@ fn parse_traffic_info(header_value: &str) -> Option<TrafficInfo> {
     let mut download = 0u64;
     let mut total = 0u64;
     let mut expire = None;
+    let mut found = false;
 
     for part in header_value.split(';') {
         let part = part.trim();
         if let Some((key, value)) = part.split_once('=') {
             match key.trim() {
-                "upload" => upload = value.trim().parse().unwrap_or(0),
-                "download" => download = value.trim().parse().unwrap_or(0),
-                "total" => total = value.trim().parse().unwrap_or(0),
-                "expire" => expire = value.trim().parse().ok(),
+                "upload" => {
+                    upload = value.trim().parse().unwrap_or(0);
+                    found = true;
+                }
+                "download" => {
+                    download = value.trim().parse().unwrap_or(0);
+                    found = true;
+                }
+                "total" => {
+                    total = value.trim().parse().unwrap_or(0);
+                    found = true;
+                }
+                "expire" => {
+                    expire = value.trim().parse().ok();
+                    found = true;
+                }
                 _ => {}
             }
         }
     }
 
-    Some(TrafficInfo {
-        upload,
-        download,
-        total,
-        expire,
-    })
+    if found {
+        Some(TrafficInfo {
+            upload,
+            download,
+            total,
+            expire,
+        })
+    } else {
+        None
+    }
 }
 
 fn extract_provider_from_url(url: &str) -> Option<String> {
-    if let Ok(parsed) = url::Url::parse(url) {
-        if let Some(host) = parsed.host_str() {
-            return Some(host.to_string());
-        }
+    if let Ok(parsed) = url::Url::parse(url)
+        && let Some(host) = parsed.host_str()
+    {
+        return Some(host.to_string());
     }
     None
 }
@@ -99,25 +115,21 @@ pub fn fetch_subscription(sub_url: &str) -> Result<Agency, Box<dyn std::error::E
         return Err(format!("HTTP {}", response.status()).into());
     }
 
-    // 解析响应头中的供应商和流量信息
     let mut provider = None;
     let mut traffic = None;
 
-    // 尝试从响应头获取供应商
-    if let Some(provider_header) = response.headers().get("subscription-userinfo") {
-        if let Ok(provider_str) = provider_header.to_str() {
-            traffic = parse_traffic_info(provider_str);
-        }
+    if let Some(provider_header) = response.headers().get("subscription-userinfo")
+        && let Ok(provider_str) = provider_header.to_str()
+    {
+        traffic = parse_traffic_info(provider_str);
     }
 
-    // 尝试从响应头获取供应商名称
-    if let Some(provider_name) = response.headers().get("x-provider") {
-        if let Ok(name) = provider_name.to_str() {
-            provider = Some(name.to_string());
-        }
+    if let Some(provider_name) = response.headers().get("x-provider")
+        && let Ok(name) = provider_name.to_str()
+    {
+        provider = Some(name.to_string());
     }
 
-    // 如果没有从响应头获取到供应商，则从URL提取
     if provider.is_none() {
         provider = extract_provider_from_url(sub_url);
     }

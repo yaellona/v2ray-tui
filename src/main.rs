@@ -20,7 +20,7 @@ fn main() -> Result<(), io::Error> {
     let mut terminal = Terminal::new(backend)?;
 
     let mut app = app::App::new();
-    app.readconfig();
+    app.read_config();
 
     loop {
         terminal.draw(|f| ui::draw(f, &app))?;
@@ -28,6 +28,9 @@ fn main() -> Result<(), io::Error> {
         if let Some(key) = app::poll_event()? {
             app.on_key(key);
         }
+
+        app.tick();
+
         if app.should_quit {
             break;
         }

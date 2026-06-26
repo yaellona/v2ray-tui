@@ -111,14 +111,25 @@ fn node_to_outbound(node: &ProxyNode) -> Value {
             outbound
         }
         ProxyNode::Ss(n) => {
-            json!({
+            let mut outbound = json!({
                 "type": "shadowsocks",
                 "tag": "proxy",
                 "server": n.address,
                 "server_port": n.port,
                 "method": n.method,
                 "password": n.password,
-            })
+            });
+            if let Some(plugin) = &n.plugin {
+                let mut plugin_obj = json!({
+                    "enabled": true,
+                    "type": plugin,
+                });
+                if let Some(opts) = &n.plugin_opts {
+                    plugin_obj["options"] = json!(opts);
+                }
+                outbound["plugin"] = plugin_obj;
+            }
+            outbound
         }
         ProxyNode::Tuic(n) => {
             let mut outbound = json!({
@@ -189,13 +200,36 @@ pub fn start_proxy(node: &ProxyNode) -> Result<Child, String> {
     fs::write(&config_path, serde_json::to_string_pretty(&config).unwrap())
         .map_err(|e| format!("写入配置文件失败: {}", e))?;
 
-    let child = Command::new("sing-box")
+    let mut child = Command::new("sing-box")
         .args(["run", "-c", config_path.to_str().unwrap()])
         .stdout(Stdio::null())
         .stderr(Stdio::piped())
         .spawn()
         .map_err(|e| format!("启动 sing-box 失败: {}", e))?;
-    Ok(child)
+
+    // 短暂等待检查进程是否立即退出（配置错误等）
+    std::thread::sleep(std::time::Duration::from_millis(500));
+    match child.try_wait() {
+        Ok(Some(status)) => {
+            let stderr_output = child
+                .stderr
+                .take()
+                .and_then(|mut stderr| {
+                    use std::io::Read;
+                    let mut buf = String::new();
+                    stderr.read_to_string(&mut buf).ok().map(|_| buf)
+                })
+                .unwrap_or_default();
+            let _ = fs::remove_file(&config_path);
+            if stderr_output.is_empty() {
+                Err(format!("sing-box 启动后立即退出 (状态: {})", status))
+            } else {
+                Err(format!("sing-box 启动失败: {}", stderr_output.trim()))
+            }
+        }
+        Ok(None) => Ok(child),
+        Err(e) => Err(format!("检查 sing-box 进程状态失败: {}", e)),
+    }
 }
 
 pub fn stop_proxy(child: &mut Child) {

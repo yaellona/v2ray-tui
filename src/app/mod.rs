@@ -8,6 +8,7 @@ use crossterm::event::KeyCode;
 use dirs::config_dir;
 use std::fs;
 use std::process::Child;
+use std::sync::mpsc;
 
 pub use event::poll_event;
 
@@ -33,6 +34,8 @@ pub struct App {
     pub status_message: Option<String>,
     pub loading: bool,
     pub system_proxy_enabled: bool,
+    pub viewing_all: bool,
+    fetch_rx: Option<mpsc::Receiver<Result<Agency, String>>>,
 }
 
 impl App {
@@ -51,10 +54,12 @@ impl App {
             status_message: None,
             loading: false,
             system_proxy_enabled: system_proxy::get_system_proxy_status(),
+            viewing_all: true,
+            fetch_rx: None,
         }
     }
 
-    pub fn readconfig(&mut self) {
+    pub fn read_config(&mut self) {
         let config_dir = config_dir().unwrap().join("ladderust");
         if !config_dir.exists() {
             return;
@@ -63,28 +68,32 @@ impl App {
         if let Ok(entries) = fs::read_dir(config_dir) {
             for entry in entries.flatten() {
                 let path = entry.path();
-                if path.extension().map_or(false, |ext| ext == "json") {
-                    if let Ok(content) = fs::read_to_string(&path) {
-                        if let Ok(mut agency) = serde_json::from_str::<Agency>(&content) {
-                            for node in agency.node.drain(..) {
-                                self.nodes.push(node);
-                            }
-                            self.agencies.push(agency);
-                        }
-                    }
+                if path.extension().is_some_and(|ext| ext == "json")
+                    && let Ok(content) = fs::read_to_string(&path)
+                    && let Ok(agency) = serde_json::from_str::<Agency>(&content)
+                {
+                    self.agencies.push(agency);
                 }
             }
         }
+
+        self.refresh_nodes();
+        self.viewing_all = true;
     }
 
     pub fn refresh_nodes(&mut self) {
+        if self.proxy_running {
+            self.stop_proxy();
+        }
         self.nodes.clear();
         for agency in &self.agencies {
-            for node in &agency.node {
+            for node in &agency.nodes {
                 self.nodes.push(node.clone());
             }
         }
         self.selected = 0;
+        self.active_node = None;
+        self.viewing_all = true;
     }
 
     pub fn switch_agency(&mut self, idx: usize) {
@@ -92,18 +101,19 @@ impl App {
             return;
         }
 
-        // 如果代理正在运行，先停止
         if self.proxy_running {
             self.stop_proxy();
         }
 
         self.nodes.clear();
         let agency = &self.agencies[idx];
-        for node in &agency.node {
+        for node in &agency.nodes {
             self.nodes.push(node.clone());
         }
         self.selected = 0;
+        self.active_node = None;
         self.agency_selected = idx;
+        self.viewing_all = false;
 
         let provider = agency
             .info
@@ -114,35 +124,102 @@ impl App {
     }
 
     pub fn fetch_and_add_agency(&mut self, url: &str) {
+        // 检查是否已存在相同 URL 的订阅
+        if self.agencies.iter().any(|a| a.url == url) {
+            self.status_message = Some("该订阅已存在".to_string());
+            return;
+        }
+
         self.loading = true;
         self.status_message = Some("正在拉取订阅...".to_string());
 
-        match config::fetch_subscription(url) {
-            Ok(agency) => {
-                let provider = agency
-                    .info
-                    .as_ref()
-                    .and_then(|i| i.provider.as_deref())
-                    .unwrap_or("未知")
-                    .to_string();
-                let node_count = agency.node.len();
+        let url_owned = url.to_string();
+        let (tx, rx) = mpsc::channel();
+        self.fetch_rx = Some(rx);
 
-                // 保存到配置文件
-                if let Err(e) = agency.save_to_config() {
-                    self.status_message = Some(format!("保存失败: {}", e));
-                    self.loading = false;
-                    return;
+        std::thread::spawn(move || {
+            let result = config::fetch_subscription(&url_owned)
+                .map_err(|e| e.to_string());
+            let _ = tx.send(result);
+        });
+    }
+
+    pub fn check_fetch_result(&mut self) {
+        let rx = match &self.fetch_rx {
+            Some(rx) => rx,
+            None => return,
+        };
+
+        match rx.try_recv() {
+            Ok(result) => {
+                self.fetch_rx = None;
+                self.loading = false;
+                match result {
+                    Ok(agency) => {
+                        let provider = agency
+                            .info
+                            .as_ref()
+                            .and_then(|i| i.provider.as_deref())
+                            .unwrap_or("未知")
+                            .to_string();
+                        let node_count = agency.nodes.len();
+
+                        if let Err(e) = agency.save_to_config() {
+                            self.status_message = Some(format!("保存失败: {}", e));
+                            return;
+                        }
+
+                        self.agencies.push(agency);
+                        self.refresh_nodes();
+                        self.status_message =
+                            Some(format!("已添加: {} ({} 个节点)", provider, node_count));
+                    }
+                    Err(e) => {
+                        self.status_message = Some(format!("拉取失败: {}", e));
+                    }
                 }
-
-                self.agencies.push(agency);
-                self.refresh_nodes();
-                self.status_message = Some(format!("已添加: {} ({} 个节点)", provider, node_count));
             }
-            Err(e) => {
-                self.status_message = Some(format!("拉取失败: {}", e));
+            Err(mpsc::TryRecvError::Empty) => {}
+            Err(mpsc::TryRecvError::Disconnected) => {
+                self.fetch_rx = None;
+                self.loading = false;
+                self.status_message = Some("拉取订阅失败: 连接断开".to_string());
             }
         }
-        self.loading = false;
+    }
+
+    pub fn check_process_health(&mut self) {
+        if !self.proxy_running {
+            return;
+        }
+
+        if let Some(child) = &mut self.child_process {
+            match child.try_wait() {
+                Ok(Some(status)) => {
+                    let msg = if status.success() {
+                        "sing-box 进程已退出".to_string()
+                    } else {
+                        format!("sing-box 进程异常退出 (状态: {})", status)
+                    };
+                    self.child_process = None;
+                    self.proxy_running = false;
+                    self.active_node = None;
+                    self.status_message = Some(msg);
+                }
+                Ok(None) => {}
+                Err(_) => {
+                    self.child_process = None;
+                    self.proxy_running = false;
+                    self.active_node = None;
+                    self.status_message = Some("检查 sing-box 进程状态失败".to_string());
+                }
+            }
+        }
+    }
+
+    pub fn tick(&mut self) {
+        self.check_fetch_result();
+        self.check_process_health();
     }
 
     pub fn toggle_proxy(&mut self) {
@@ -150,18 +227,15 @@ impl App {
             return;
         }
 
-        // 如果当前节点正在运行，且按的是同一个节点，则停止
         if self.proxy_running && self.active_node == Some(self.selected) {
             self.stop_proxy();
             return;
         }
 
-        // 如果有其他节点在运行，先停止
         if self.proxy_running {
             self.stop_proxy();
         }
 
-        // 启动新节点
         self.start_proxy();
     }
 
@@ -172,6 +246,7 @@ impl App {
                 self.child_process = Some(child);
                 self.proxy_running = true;
                 self.active_node = Some(self.selected);
+                self.status_message = Some(format!("已启动: {}", node.name()));
             }
             Err(e) => {
                 self.status_message = Some(format!("启动代理失败: {}", e));
@@ -220,13 +295,11 @@ impl App {
                 self.popup = PopupMode::None;
                 self.url_input.clear();
             }
-            KeyCode::Enter => {
-                if !self.url_input.is_empty() {
-                    let url = self.url_input.clone();
-                    self.popup = PopupMode::None;
-                    self.url_input.clear();
-                    self.fetch_and_add_agency(&url);
-                }
+            KeyCode::Enter if !self.url_input.is_empty() => {
+                let url = self.url_input.clone();
+                self.popup = PopupMode::None;
+                self.url_input.clear();
+                self.fetch_and_add_agency(&url);
             }
             KeyCode::Backspace => {
                 self.url_input.pop();
@@ -263,7 +336,6 @@ impl App {
     }
 
     pub fn on_key(&mut self, key: KeyCode) {
-        // 弹窗模式下处理弹窗按键
         match self.popup {
             PopupMode::UrlInput => {
                 self.handle_url_input(key);
@@ -276,7 +348,6 @@ impl App {
             PopupMode::None => {}
         }
 
-        // 正常模式
         if key == KeyCode::Char('q') {
             self.should_quit = true;
             return;
@@ -294,7 +365,6 @@ impl App {
                 }
             }
             KeyCode::Char('s') => {
-                // 切换显示所有节点或当前代理商节点
                 self.refresh_nodes();
                 self.status_message = Some("已刷新节点列表".to_string());
             }

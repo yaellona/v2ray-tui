@@ -1,7 +1,7 @@
 use crate::app::App;
 use ratatui::{
     Frame,
-    layout::{Alignment, Constraint, Direction, Layout, Rect},
+    layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Style},
     widgets::{Block, Borders, Clear, Paragraph, Wrap},
 };
@@ -29,7 +29,6 @@ fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
 pub fn render_url_input(f: &mut Frame, app: &App) {
     let area = centered_rect(60, 20, f.area());
 
-    // 清除背景
     f.render_widget(Clear, area);
 
     let block = Block::default()
@@ -45,7 +44,6 @@ pub fn render_url_input(f: &mut Frame, app: &App) {
         .constraints([Constraint::Min(1)])
         .split(inner);
 
-    // 显示输入内容，带光标
     let input_text = if app.url_input.is_empty() {
         "请输入订阅 URL...".to_string()
     } else {
@@ -63,22 +61,6 @@ pub fn render_url_input(f: &mut Frame, app: &App) {
         .wrap(Wrap { trim: false });
 
     f.render_widget(input, input_layout[0]);
-
-    // 如果正在加载，显示加载提示
-    if app.loading {
-        let loading_area = centered_rect(40, 10, f.area());
-        f.render_widget(Clear, loading_area);
-        let loading_block = Block::default()
-            .title("提示")
-            .borders(Borders::ALL)
-            .style(Style::default().bg(Color::DarkGray).fg(Color::Yellow));
-        let loading_text = Paragraph::new("正在拉取订阅，请稍候...")
-            .alignment(Alignment::Center)
-            .style(Style::default().fg(Color::Yellow));
-        f.render_widget(loading_block, loading_area);
-        let inner = Block::default().borders(Borders::ALL).inner(loading_area);
-        f.render_widget(loading_text, inner);
-    }
 }
 
 pub fn render_agency_select(f: &mut Frame, app: &App) {
@@ -106,7 +88,7 @@ pub fn render_agency_select(f: &mut Frame, app: &App) {
                 .as_ref()
                 .and_then(|info| info.provider.as_deref())
                 .unwrap_or("未知供应商");
-            let node_count = agency.node.len();
+            let node_count = agency.nodes.len();
             let marker = if i == app.agency_selected {
                 ">> "
             } else {

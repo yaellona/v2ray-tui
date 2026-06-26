@@ -78,11 +78,7 @@ pub fn parse_ss(uri: &str) -> Result<SsNode, Box<dyn std::error::Error>> {
             let end = server.find(']').ok_or("Invalid IPv6 address")?;
             let host = &server[1..end];
             let rest = &server[end + 1..];
-            let port = if rest.starts_with(':') {
-                &rest[1..]
-            } else {
-                "8388"
-            };
+            let port = rest.strip_prefix(':').unwrap_or("8388");
             (host.to_string(), port)
         } else {
             match server.rsplit_once(':') {

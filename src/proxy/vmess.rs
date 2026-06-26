@@ -17,6 +17,8 @@ struct VmessJson {
     alpn: Option<String>,
     fp: Option<String>,
     scy: Option<String>,
+    pbk: Option<String>,
+    sid: Option<String>,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -67,8 +69,8 @@ pub fn parse_vmess(uri: &str) -> Result<VmessNode, Box<dyn std::error::Error>> {
                 .filter(|v: &Vec<String>| !v.is_empty()),
             fingerprint: v.fp.filter(|s| !s.is_empty()),
             security: v.tls,
-            reality_pbk: None,
-            reality_sid: None,
+            reality_pbk: v.pbk.filter(|s| !s.is_empty()),
+            reality_sid: v.sid.filter(|s| !s.is_empty()),
         })
     } else {
         None
