@@ -3,6 +3,7 @@ mod event;
 use crate::config::{self, Agency};
 use crate::proxy::ProxyNode;
 use crate::singbox;
+use crate::system::system_proxy;
 use crossterm::event::KeyCode;
 use std::fs;
 use std::path::Path;
@@ -31,6 +32,7 @@ pub struct App {
     pub agency_selected: usize,
     pub status_message: Option<String>,
     pub loading: bool,
+    pub system_proxy_enabled: bool,
 }
 
 impl App {
@@ -48,6 +50,7 @@ impl App {
             agency_selected: 0,
             status_message: None,
             loading: false,
+            system_proxy_enabled: system_proxy::get_system_proxy_status(),
         }
     }
 
@@ -189,6 +192,22 @@ impl App {
         self.stop_proxy();
     }
 
+    pub fn toggle_system_proxy(&mut self) {
+        let new_status = !self.system_proxy_enabled;
+        match system_proxy::set_system_proxy(new_status) {
+            Ok(()) => {
+                self.system_proxy_enabled = new_status;
+                self.status_message = Some(format!(
+                    "系统代理已{}",
+                    if new_status { "开启" } else { "关闭" }
+                ));
+            }
+            Err(e) => {
+                self.status_message = Some(format!("设置系统代理失败: {}", e));
+            }
+        }
+    }
+
     pub fn get_active_node_name(&self) -> Option<&str> {
         self.active_node
             .and_then(|idx| self.nodes.get(idx))
@@ -278,6 +297,9 @@ impl App {
                 // 切换显示所有节点或当前代理商节点
                 self.refresh_nodes();
                 self.status_message = Some("已刷新节点列表".to_string());
+            }
+            KeyCode::Char('p') => {
+                self.toggle_system_proxy();
             }
             _ => {
                 if self.nodes.is_empty() {

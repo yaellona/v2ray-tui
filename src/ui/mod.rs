@@ -32,9 +32,12 @@ pub fn draw(f: &mut Frame, app: &App) {
     );
 
     // 底部快捷键
-    let footer = components::footer::render(
-        "q: 退出 | ↑↓: 导航 | Enter: 启动/停止 | u: 添加订阅 | c: 切换代理商",
+    let system_proxy_status = if app.system_proxy_enabled { "开" } else { "关" };
+    let shortcuts = format!(
+        "q: 退出 | ↑↓: 导航 | Enter: 启动/停止 | u: 添加订阅 | c: 切换代理商 | p: 系统代理({})",
+        system_proxy_status
     );
+    let footer = components::footer::render(&shortcuts);
     f.render_widget(footer, chunks[2]);
 
     // 弹窗渲染

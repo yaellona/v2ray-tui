@@ -20,6 +20,10 @@ pub fn render(app: &App) -> Paragraph<'_> {
         info_lines.push("\u{1f534} 代理已停止".to_string());
     }
 
+    // 显示系统代理状态
+    let system_proxy_icon = if app.system_proxy_enabled { "\u{1f7e2}" } else { "\u{1f534}" };
+    info_lines.push(format!("{} 系统代理: {}", system_proxy_icon, if app.system_proxy_enabled { "开" } else { "关" }));
+
     // 显示当前代理商信息
     if !app.agencies.is_empty() {
         let current_agency = &app.agencies[app.agency_selected % app.agencies.len()];
