@@ -83,13 +83,9 @@ pub fn render_agency_select(f: &mut Frame, app: &App) {
         .iter()
         .enumerate()
         .map(|(i, agency)| {
-            let provider = agency
-                .info
-                .as_ref()
-                .and_then(|info| info.provider.as_deref())
-                .unwrap_or("未知供应商");
+            let provider = &agency.provider;
             let node_count = agency.nodes.len();
-            let marker = if i == app.agency_selected {
+            let marker = if i == app.selected_agency {
                 ">> "
             } else {
                 "   "

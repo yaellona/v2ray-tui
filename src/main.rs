@@ -12,6 +12,8 @@ use crossterm::{
 use ratatui::{Terminal, backend::CrosstermBackend};
 use std::io;
 
+use crate::config::read_config;
+
 fn main() -> Result<(), io::Error> {
     enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -19,8 +21,7 @@ fn main() -> Result<(), io::Error> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    let mut app = app::App::new();
-    app.read_config();
+    let mut app = app::App::new(read_config());
 
     loop {
         terminal.draw(|f| ui::draw(f, &app))?;
@@ -28,15 +29,10 @@ fn main() -> Result<(), io::Error> {
         if let Some(key) = app::poll_event()? {
             app.on_key(key);
         }
-
-        app.tick();
-
         if app.should_quit {
             break;
         }
     }
-
-    // 清理子进程
     app.cleanup();
 
     disable_raw_mode()?;

@@ -197,11 +197,15 @@ pub fn start_proxy(node: &ProxyNode) -> Result<Child, String> {
     let config = generate_config(node);
     let config_path = get_config_path();
 
-    fs::write(&config_path, serde_json::to_string_pretty(&config).unwrap())
+    let config_json = serde_json::to_string_pretty(&config)
+        .map_err(|e| format!("序列化配置失败: {}", e))?;
+    fs::write(&config_path, config_json)
         .map_err(|e| format!("写入配置文件失败: {}", e))?;
 
+    let config_path_str = config_path.to_str()
+        .ok_or("配置文件路径无效")?;
     let mut child = Command::new("sing-box")
-        .args(["run", "-c", config_path.to_str().unwrap()])
+        .args(["run", "-c", config_path_str])
         .stdout(Stdio::null())
         .stderr(Stdio::piped())
         .spawn()

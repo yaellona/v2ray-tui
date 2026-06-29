@@ -27,22 +27,19 @@ pub fn render(app: &App) -> Paragraph<'_> {
     info_lines.push(format!(
         "{} 系统代理: {}",
         system_proxy_icon,
-        if app.system_proxy_enabled { "开" } else { "关" }
+        if app.system_proxy_enabled {
+            "开"
+        } else {
+            "关"
+        }
     ));
 
     if !app.agencies.is_empty() {
-        let current_agency = &app.agencies[app.agency_selected % app.agencies.len()];
-        let provider = current_agency
-            .info
-            .as_ref()
-            .and_then(|i| i.provider.as_deref())
-            .unwrap_or("未知");
-        let node_count = current_agency.nodes.len();
-        let mode = if app.viewing_all { "全部" } else { provider };
-        info_lines.push(format!(
-            "当前代理商: {} ({} 个节点) [{}]",
-            provider, node_count, mode
-        ));
+        if let Some(current_agency) = app.current_agency() {
+            let provider = &current_agency.provider;
+            let node_count = current_agency.nodes.len();
+            info_lines.push(format!("当前代理商: {} ({} 个节点)", provider, node_count));
+        }
     }
 
     if app.loading {

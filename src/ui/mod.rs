@@ -14,7 +14,7 @@ pub fn draw(f: &mut Frame, app: &App) {
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Length(3), // 信息区域
-            Constraint::Min(0),   // 中间表格
+            Constraint::Min(0),    // 中间表格
             Constraint::Length(1), // 底部
         ])
         .split(size);
@@ -24,15 +24,19 @@ pub fn draw(f: &mut Frame, app: &App) {
     f.render_widget(info, chunks[0]);
 
     // 中间表格
-    let content = components::content::render(&app.nodes);
+    let content = components::content::render(app.current_nodes());
     f.render_stateful_widget(
         content,
         chunks[1],
-        &mut ratatui::widgets::TableState::default().with_selected(Some(app.selected)),
+        &mut ratatui::widgets::TableState::default().with_selected(Some(app.selected_node)),
     );
 
     // 底部快捷键
-    let system_proxy_status = if app.system_proxy_enabled { "开" } else { "关" };
+    let system_proxy_status = if app.system_proxy_enabled {
+        "开"
+    } else {
+        "关"
+    };
     let shortcuts = format!(
         "q: 退出 | ↑↓: 导航 | Enter: 启动/停止 | u: 添加订阅 | c: 切换代理商 | p: 系统代理({})",
         system_proxy_status
