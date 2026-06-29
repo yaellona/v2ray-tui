@@ -51,12 +51,16 @@ pub fn set_system_proxy(enable: bool, port: u16) -> Result<(), String> {
             // 设置当前进程环境变量
             std::env::set_var("http_proxy", &proxy_url);
             std::env::set_var("HTTP_PROXY", &proxy_url);
+            std::env::set_var("https_proxy", &proxy_url);
+            std::env::set_var("HTTPS_PROXY", &proxy_url);
 
             // 通过 dbus-update-activation-environment 注入整个 session
             let status = Command::new("dbus-update-activation-environment")
                 .args([
                     &format!("http_proxy={}", proxy_url),
                     &format!("HTTP_PROXY={}", proxy_url),
+                    &format!("https_proxy={}", proxy_url),
+                    &format!("HTTPS_PROXY={}", proxy_url),
                 ])
                 .status();
 
@@ -73,9 +77,11 @@ pub fn set_system_proxy(enable: bool, port: u16) -> Result<(), String> {
             // 清空环境变量
             std::env::remove_var("http_proxy");
             std::env::remove_var("HTTP_PROXY");
+            std::env::remove_var("https_proxy");
+            std::env::remove_var("HTTPS_PROXY");
 
             let status = Command::new("dbus-update-activation-environment")
-                .args(["http_proxy=", "HTTP_PROXY="])
+                .args(["http_proxy=", "HTTP_PROXY=", "https_proxy=", "HTTPS_PROXY="])
                 .status();
 
             match status {
@@ -124,6 +130,8 @@ pub fn get_system_proxy_status(port: u16) -> bool {
         let expected = format!("http://127.0.0.1:{}", port);
         std::env::var("http_proxy")
             .or_else(|_| std::env::var("HTTP_PROXY"))
+            .or_else(|_| std::env::var("https_proxy"))
+            .or_else(|_| std::env::var("HTTPS_PROXY"))
             .map(|v| v == expected)
             .unwrap_or(false)
     }
