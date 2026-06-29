@@ -119,9 +119,11 @@ pub fn get_system_proxy_status(port: u16) -> bool {
         match output {
             Ok(o) => {
                 let stdout = String::from_utf8_lossy(&o.stdout).trim().to_string();
-                stdout == "1"
+                return stdout == "1";
             }
-            Err(_) => false,
+            Err(_) => {
+                return false;
+            }
         }
     }
 

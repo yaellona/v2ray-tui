@@ -6,13 +6,11 @@
 >
 > 我没有别的梯子了喵
 
-## 用法
+## 安装
 
-### 安装sing-box
+### 1. 安装 sing-box
 
-只要能在终端直接输入sing-box即可。
-
-安装方式：
+本项目依赖 sing-box 内核，请确保 `sing-box` 命令可用。
 
 | 系统      | 命令                        | 说明                                    |
 | --------- | --------------------------- | --------------------------------------- |
@@ -20,23 +18,37 @@
 | archLinux | `paru -S sing-box`          | 我想无需多言                            |
 | nixos     | `sudo nixos-rebuild switch` | `sing-box`添加到`configuration.nix`里面 |
 
-> 其他的没用过或者不常用的就不说了
+### 2. 下载 ladderust
 
-### 编译
+从 [GitHub Releases](https://github.com/yaellona/v2ray-tui/releases) 下载对应平台的压缩包：
 
-拉取项目前先安装`rustup`,执行命令：
+| 系统      | 文件                                  |
+| --------- | ------------------------------------- |
+| Windows   | `ladderust-x86_64-pc-windows-msvc.zip` |
+| Linux     | `ladderust-x86_64-unknown-linux-gnu.tar.gz` |
+| macOS     | `ladderust-x86_64-apple-darwin.tar.gz` |
+
+解压后将 `ladderust`（或 `ladderust.exe`）放到 PATH 目录下即可。
+
+### 从源码编译
 
 ```bash
 rustup install stable
-```
-
-安装完成后，进入项目文件夹，执行命令：
-
-```bash
+git clone https://github.com/yaellona/v2ray-tui.git
+cd v2ray-tui
 cargo build --release
 ```
 
-编译完成后，可以在`./target/release`中找到编译的可执行文件。
+编译产物在 `./target/release/ladderust`。
+
+## 发布
+
+推送 `v*` 标签自动触发 GitHub Actions 构建并发布：
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
 
 ## TODO
 
