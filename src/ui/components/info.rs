@@ -1,5 +1,4 @@
 use crate::app::App;
-use crate::singbox;
 use ratatui::{
     style::{Color, Style},
     widgets::{Block, Borders, Paragraph},
@@ -12,7 +11,7 @@ pub fn render(app: &App) -> Paragraph<'_> {
         let node_name = app.get_active_node_name().unwrap_or("未知");
         info_lines.push(format!(
             "\u{1f7e2} 代理运行中 (127.0.0.1:{}) - {}",
-            singbox::get_listen_port(),
+            app.listen_port,
             node_name
         ));
     } else {

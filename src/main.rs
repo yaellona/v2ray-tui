@@ -2,7 +2,7 @@ mod app;
 mod config;
 mod proxy;
 mod singbox;
-mod system;
+mod system_proxy;
 mod ui;
 
 use crossterm::{
