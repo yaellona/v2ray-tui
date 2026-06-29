@@ -97,7 +97,7 @@ impl App {
 
     pub fn toggle_system_proxy(&mut self) {
         let new_status = !self.system_proxy_enabled;
-        match system_proxy::set_system_proxy(new_status) {
+        match system_proxy::set_system_proxy(new_status, self.listen_port) {
             Ok(()) => {
                 self.system_proxy_enabled = new_status;
                 self.status_message = Some(format!(

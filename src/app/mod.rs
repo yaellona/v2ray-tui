@@ -36,6 +36,7 @@ pub struct App {
 
 impl App {
     pub fn new(agencies: Vec<Agency>) -> Self {
+        let listen_port = crate::singbox::get_listen_port();
         Self {
             selected_node: 0,
             should_quit: false,
@@ -48,9 +49,9 @@ impl App {
             selected_agency: 0,
             status_message: None,
             loading: false,
-            system_proxy_enabled: system_proxy::get_system_proxy_status(),
+            system_proxy_enabled: system_proxy::get_system_proxy_status(listen_port),
             viewing_all: true,
-            listen_port: crate::singbox::get_listen_port(),
+            listen_port,
         }
     }
 

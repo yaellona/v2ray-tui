@@ -1,19 +1,12 @@
 use std::process::Command;
 
-const PROXY_ADDR: &str = "127.0.0.1:10808";
-
 #[cfg(target_os = "windows")]
 const REG_PATH: &str = "HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings";
 
-pub fn set_system_proxy(enable: bool) -> Result<(), String> {
-    #[cfg(not(target_os = "windows"))]
-    {
-        let _ = enable;
-        return Err("系统代理功能仅支持 Windows".to_string());
-    }
-
+pub fn set_system_proxy(enable: bool, port: u16) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
+        let proxy_addr = format!("127.0.0.1:{}", port);
         let value = if enable { "1" } else { "0" };
 
         let status = Command::new("powershell")
@@ -37,7 +30,7 @@ pub fn set_system_proxy(enable: bool) -> Result<(), String> {
                     "-Command",
                     &format!(
                         "Set-ItemProperty -Path '{}' -Name ProxyServer -Value '{}'",
-                        REG_PATH, PROXY_ADDR
+                        REG_PATH, proxy_addr
                     ),
                 ])
                 .status()
@@ -49,16 +42,67 @@ pub fn set_system_proxy(enable: bool) -> Result<(), String> {
         }
         Ok(())
     }
-}
 
-pub fn get_system_proxy_status() -> bool {
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "linux")]
     {
-        return false;
+        let proxy_url = format!("http://127.0.0.1:{}", port);
+
+        if enable {
+            // 设置当前进程环境变量
+            std::env::set_var("http_proxy", &proxy_url);
+            std::env::set_var("HTTP_PROXY", &proxy_url);
+
+            // 通过 dbus-update-activation-environment 注入整个 session
+            let status = Command::new("dbus-update-activation-environment")
+                .args([
+                    &format!("http_proxy={}", proxy_url),
+                    &format!("HTTP_PROXY={}", proxy_url),
+                ])
+                .status();
+
+            match status {
+                Ok(s) if !s.success() => {
+                    return Err("dbus-update-activation-environment 执行失败".to_string());
+                }
+                Err(e) => {
+                    return Err(format!("dbus-update-activation-environment 未找到: {}", e));
+                }
+                _ => {}
+            }
+        } else {
+            // 清空环境变量
+            std::env::remove_var("http_proxy");
+            std::env::remove_var("HTTP_PROXY");
+
+            let status = Command::new("dbus-update-activation-environment")
+                .args(["http_proxy=", "HTTP_PROXY="])
+                .status();
+
+            match status {
+                Ok(s) if !s.success() => {
+                    return Err("dbus-update-activation-environment 执行失败".to_string());
+                }
+                Err(e) => {
+                    return Err(format!("dbus-update-activation-environment 未找到: {}", e));
+                }
+                _ => {}
+            }
+        }
+
+        Ok(())
     }
 
+    #[cfg(not(any(target_os = "windows", target_os = "linux")))]
+    {
+        let _ = (enable, port);
+        Err("系统代理功能仅支持 Windows 和 Linux".to_string())
+    }
+}
+
+pub fn get_system_proxy_status(port: u16) -> bool {
     #[cfg(target_os = "windows")]
     {
+        let _ = port; // Windows 通过注册表 ProxyEnable 检测，不需要端口
         let output = Command::new("powershell")
             .args([
                 "-Command",
@@ -73,5 +117,20 @@ pub fn get_system_proxy_status() -> bool {
             }
             Err(_) => false,
         }
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        let expected = format!("http://127.0.0.1:{}", port);
+        std::env::var("http_proxy")
+            .or_else(|_| std::env::var("HTTP_PROXY"))
+            .map(|v| v == expected)
+            .unwrap_or(false)
+    }
+
+    #[cfg(not(any(target_os = "windows", target_os = "linux")))]
+    {
+        let _ = port;
+        false
     }
 }
