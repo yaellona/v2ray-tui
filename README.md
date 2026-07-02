@@ -1,3 +1,6 @@
+> 投敌了喵，mihomo真好用喵。
+> 转移到我的[mihomo-tui](https://github.com/yaellona/mihomo-tui)喵。
+
 ## 介绍
 
 这个是基于sing-box内核的tui。
